@@ -1,6 +1,7 @@
 package service
 
 import (
+	"errors"
 	"path/filepath"
 	"testing"
 
@@ -66,6 +67,39 @@ func TestRunFullAnalysisIdempotent(t *testing.T) {
 	}
 	if _, err := svc.Analyze().RunFullAnalysis(d.ID); err != nil {
 		t.Fatalf("second analyze should be idempotent: %v", err)
+	}
+}
+
+func TestCreateVersionRejectsPrematureDanceState(t *testing.T) {
+	svc := newTestService(t)
+	d, err := svc.Dance().CreateDance("ver-dance", "Yunnan", 1, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// organizing: 全量分析与裁决尚未完成，禁止创建版本草稿。
+	if _, err := svc.Version().CreateVersion(d.ID, "v1", "e"); err == nil {
+		t.Fatal("expected error creating version from organizing dance")
+	} else if !errors.Is(err, model.ErrInvalidState) {
+		t.Fatalf("expected ErrInvalidState, got %v", err)
+	}
+
+	// 待对齐仍未完成复核，同样禁止。
+	if _, err := svc.Dance().TransitDance(d.ID, model.DanceStatusAligning); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.Version().CreateVersion(d.ID, "v1", "e"); err == nil {
+		t.Fatal("expected error creating version from aligning dance")
+	}
+
+	// 流转至待复核后允许创建。
+	if _, err := svc.Dance().TransitDance(d.ID, model.DanceStatusReviewing); err != nil {
+		t.Fatal(err)
+	}
+	if v, err := svc.Version().CreateVersion(d.ID, "v1", "e"); err != nil {
+		t.Fatalf("expected version allowed in reviewing, got %v", err)
+	} else if v.Status != model.VersionStatusDraft {
+		t.Fatalf("expected draft, got %s", v.Status)
 	}
 }
 

@@ -324,10 +324,14 @@ type VersionActions struct{ svc *Service }
 // Version 返回版本动作。
 func (s *Service) Version() *VersionActions { return &VersionActions{svc: s} }
 
-// CreateVersion 创建谱记版本草稿（仅允许在已发布/待复核状态）。
+// CreateVersion 创建谱记版本草稿（仅允许在待复核/已发布状态；整理中、待对齐阶段尚未完成全量分析与裁决，封存为终态）。
 func (v *VersionActions) CreateVersion(danceID int64, summary, evidence string) (*model.NotationVersion, error) {
-	if _, err := v.svc.Store.Dances.Get(danceID); err != nil {
+	dance, err := v.svc.Store.Dances.Get(danceID)
+	if err != nil {
 		return nil, err
+	}
+	if dance.Status != model.DanceStatusReviewing && dance.Status != model.DanceStatusPublished {
+		return nil, fmt.Errorf("%w: create version requires dance reviewing/published, got %s", model.ErrInvalidState, dance.Status)
 	}
 	return v.svc.Store.Versions.Create(danceID, summary, evidence)
 }
