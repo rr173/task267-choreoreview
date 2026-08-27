@@ -121,6 +121,13 @@ func (s *VariantStore) Adjudicate(id int64, verdict, reason string) (*model.Vari
 	return s.Get(id)
 }
 
+// CountByDance 统计舞段全部异读候选数。
+func (s *VariantStore) CountByDance(danceID int64) (int, error) {
+	var n int
+	err := s.db.QueryRow(`SELECT COUNT(*) FROM variants WHERE dance_id=?`, danceID).Scan(&n)
+	return n, err
+}
+
 // CountOpenByDance 统计未裁决候选数。
 func (s *VariantStore) CountOpenByDance(danceID int64) (int, error) {
 	var n int

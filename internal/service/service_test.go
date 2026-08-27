@@ -116,3 +116,75 @@ func TestAdjudicateFormationSyncsEdge(t *testing.T) {
 		}
 	}
 }
+
+func TestStatsOpenVariantCountMatchesOpenVariants(t *testing.T) {
+	svc := newTestService(t)
+	d, err := svc.Dance().CreateDance("stats-dance", "Yunnan", 2, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.Movement().AddMovement(d.ID, 1, 1, 2, "step-a", model.ConnectionContinuous); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.Movement().AddMovement(d.ID, 1, 5, 6, "step-b", model.ConnectionContinuous); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.Formation().AddFormation(d.ID, 1, 2, 1, 4, "line"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.Formation().AddFormation(d.ID, 2, 1, 1, 4, "diagonal"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.Analyze().RunFullAnalysis(d.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	// 裁决前：open_variant_count 应等于未裁决候选数。
+	open, err := svc.Variant().OpenVariants(d.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stats, err := svc.Stats()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stats.OpenVariantCount != len(open) {
+		t.Fatalf("before adjudication: open_variant_count=%d want %d (OpenVariants)",
+			stats.OpenVariantCount, len(open))
+	}
+	if stats.VariantCount < stats.OpenVariantCount {
+		t.Fatalf("variant_count=%d should be >= open_variant_count=%d",
+			stats.VariantCount, stats.OpenVariantCount)
+	}
+
+	// 全部裁决后：open_variant_count 必须归零，与 OpenVariants 一致。
+	for _, v := range open {
+		verdict := model.VariantStatusConfirmed
+		if v.Type == model.VariantTypeMovement {
+			verdict = model.VariantStatusRejected
+		}
+		if _, err := svc.Variant().Adjudicate(v.ID, verdict, "decided"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	stats, err = svc.Stats()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stats.OpenVariantCount != 0 {
+		t.Fatalf("after adjudicating all variants: open_variant_count=%d want 0",
+			stats.OpenVariantCount)
+	}
+	if stats.VariantCount == 0 {
+		t.Fatalf("variant_count should remain >0 after adjudication, got %d",
+			stats.VariantCount)
+	}
+	remainOpen, err := svc.Variant().OpenVariants(d.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(remainOpen) != stats.OpenVariantCount {
+		t.Fatalf("stats.open_variant_count=%d != OpenVariants()=%d",
+			stats.OpenVariantCount, len(remainOpen))
+	}
+}

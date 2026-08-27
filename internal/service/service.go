@@ -375,11 +375,14 @@ func (s *Service) Stats() (*model.Stats, error) {
 		if err != nil {
 			return nil, err
 		}
-		allVariants, err := st.Variants.ListByDance(d.ID)
+		nv, err := st.Variants.CountByDance(d.ID)
 		if err != nil {
 			return nil, err
 		}
-		nv := len(allVariants)
+		no, err := st.Variants.CountOpenByDance(d.ID)
+		if err != nil {
+			return nil, err
+		}
 		nvv, err := st.Versions.NextVersionNo(d.ID)
 		if err != nil {
 			return nil, err
@@ -387,8 +390,8 @@ func (s *Service) Stats() (*model.Stats, error) {
 		out.MovementCount += nm
 		out.BeatAnchorCount += nb
 		out.FormationCount += nf
-		out.OpenVariantCount += nv
 		out.VariantCount += nv
+		out.OpenVariantCount += no
 		out.VersionCount += nvv - 1
 	}
 	return out, nil
