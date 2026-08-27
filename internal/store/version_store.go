@@ -91,10 +91,7 @@ func (s *VersionStore) SetStatus(id int64, to string) (*model.NotationVersion, e
 	return s.Get(id)
 }
 
-// Freeze 冻结版本（不可再修改）。
+// Freeze 冻结版本（不可再修改）。必须经由 shared 状态流转，不得从 draft 直接冻结。
 func (s *VersionStore) Freeze(id int64) (*model.NotationVersion, error) {
-	if _, err := s.db.Exec(`UPDATE notation_versions SET status=? WHERE id=?`, model.VersionStatusFrozen, id); err != nil {
-		return nil, err
-	}
-	return s.Get(id)
+	return s.SetStatus(id, model.VersionStatusFrozen)
 }
