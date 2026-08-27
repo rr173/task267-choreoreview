@@ -296,6 +296,11 @@ func (v *VariantActions) OpenVariants(danceID int64) ([]*model.VariantCandidate,
 }
 
 // Adjudicate 裁决异读（确认/保留地方变体/否决）。
+//
+// 队形类候选裁决后同步写回 formations 表，使队形边状态与裁决一致：
+//   - confirmed（含地方变体）→ 队形边 confirmed
+//   - rejected → 队形边 rejected
+// 候选的 ref_id 指向冲突队形边，仅同步该边；其余队形边不受影响。
 func (v *VariantActions) Adjudicate(variantID int64, verdict, reason string) (*model.VariantCandidate, error) {
 	c, err := v.svc.Store.Variants.Get(variantID)
 	if err != nil {
@@ -308,7 +313,17 @@ func (v *VariantActions) Adjudicate(variantID int64, verdict, reason string) (*m
 	if dance.Status == model.DanceStatusSealed {
 		return nil, fmt.Errorf("%w: dance %d", model.ErrSealed, dance.ID)
 	}
-	return v.svc.Store.Variants.Adjudicate(variantID, verdict, reason)
+	updated, err := v.svc.Store.Variants.Adjudicate(variantID, verdict, reason)
+	if err != nil {
+		return nil, err
+	}
+	// 队形异读裁决结果写回对应队形边状态（verdict 取值与 FormationStatus 常量一致）
+	if c.Type == model.VariantTypeFormation {
+		if err := v.svc.Store.Formations.SetStatus(c.RefID, verdict); err != nil {
+			return nil, err
+		}
+	}
+	return updated, nil
 }
 
 // Version 版本编排组。
