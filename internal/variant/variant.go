@@ -53,22 +53,25 @@ func (s *Service) BuildFormationCandidates(danceID int64, check *model.Formation
 }
 
 // BuildBeatCandidates 将节拍对齐异常（谱记节拍无影像锚点）物化为候选。
+//
+// 凡 Anchored=false 的谱记节拍均缺失影像锚点，无论其位于序列首段、
+// 中段稀疏缺口还是末段尾部，都应物化为一个 beat 类候选。
+// 注意：不能以 BeatNo 与 MatchedCount 的大小关系为门槛——MatchedCount
+// 只是已锚定节拍的数量，锚点稀疏时中段未锚拍会被错误丢弃。
 func (s *Service) BuildBeatCandidates(danceID int64, align *model.AlignmentResult, thresholdMs float64) []*model.VariantCandidate {
 	var out []*model.VariantCandidate
 	for _, off := range align.Offsets {
 		if off.Anchored {
 			continue
 		}
-		if off.BeatNo > align.MatchedCount {
-			out = append(out, &model.VariantCandidate{
-				DanceID: danceID,
-				Type:    model.VariantTypeBeat,
-				RefID:   int64(off.BeatNo),
-				Detail: fmt.Sprintf("beat %d missing image anchor (threshold %s ms)",
-					off.BeatNo, strconv.FormatFloat(thresholdMs, 'f', 1, 64)),
-				Status: model.VariantStatusCandidate,
-			})
-		}
+		out = append(out, &model.VariantCandidate{
+			DanceID: danceID,
+			Type:    model.VariantTypeBeat,
+			RefID:   int64(off.BeatNo),
+			Detail: fmt.Sprintf("beat %d missing image anchor (threshold %s ms)",
+				off.BeatNo, strconv.FormatFloat(thresholdMs, 'f', 1, 64)),
+			Status: model.VariantStatusCandidate,
+		})
 	}
 	return out
 }
