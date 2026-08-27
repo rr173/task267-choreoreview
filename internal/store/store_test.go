@@ -68,6 +68,25 @@ func TestDanceStateMachine(t *testing.T) {
 	}
 }
 
+// TestDanceStateMachineNoSkip 防止跨级跳转：整理中不得直接到待复核/已发布/封存。
+func TestDanceStateMachineNoSkip(t *testing.T) {
+	st := openTest(t)
+	d, _ := st.Dances.Create("跳乐", "云南", 3, "")
+	// organizing -> published/reviewing/sealed 均非法（须先 aligning 再 reviewing 再 published 再 sealed）
+	for _, to := range []string{model.DanceStatusPublished, model.DanceStatusReviewing, model.DanceStatusSealed} {
+		if _, err := st.Dances.SetStatus(d.ID, to); err == nil {
+			t.Fatalf("expected invalid transition organizing -> %s", to)
+		}
+	}
+	// organizing -> aligning 合法；但 aligning -> published 仍需先 reviewing
+	if _, err := st.Dances.SetStatus(d.ID, model.DanceStatusAligning); err != nil {
+		t.Fatalf("transit aligning: %v", err)
+	}
+	if _, err := st.Dances.SetStatus(d.ID, model.DanceStatusPublished); err == nil {
+		t.Fatal("expected invalid transition aligning -> published")
+	}
+}
+
 func TestMovementUnique(t *testing.T) {
 	st := openTest(t)
 	d, _ := st.Dances.Create("打歌", "云南", 2, "")

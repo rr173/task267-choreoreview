@@ -71,8 +71,8 @@ func (s *DanceStore) SetStatus(id int64, to string) (*model.DancePiece, error) {
 	if err != nil {
 		return nil, err
 	}
-	if d.Status == model.DanceStatusSealed {
-		return nil, fmt.Errorf("%w: dance %d", model.ErrSealed, id)
+	if !model.CanTransitDance(d.Status, to) {
+		return nil, fmt.Errorf("%w: dance %d %s -> %s", model.ErrInvalidState, id, d.Status, to)
 	}
 	now := time.Now().UTC()
 	if _, err := s.db.Exec(`UPDATE dances SET status=?, updated_at=? WHERE id=?`, to, now, id); err != nil {
