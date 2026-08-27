@@ -97,6 +97,9 @@ func (s *Service) Align(anchors []*model.BeatAnchor) *model.AlignmentResult {
 }
 
 // estimateTempo 用相邻锚点间隔的中位秒差估算每拍秒数。
+//
+// 个别异常锚点间隔会拉偏均值，进而让逐拍预期时间系统性漂移、把中间节拍的
+// offset_ms 拉得很大。中位数对离群间隔不敏感，因而更稳健。
 func estimateTempo(sorted []*model.BeatAnchor) float64 {
 	if len(sorted) < 2 {
 		return 0.5 // 默认 120 BPM
@@ -108,12 +111,15 @@ func estimateTempo(sorted []*model.BeatAnchor) float64 {
 			gaps = append(gaps, (sorted[i].ImageTime-sorted[i-1].ImageTime)/float64(beatGap))
 		}
 	}
-	if len(gaps) == 0 {
+	n := len(gaps)
+	if n == 0 {
 		return 0.5
 	}
-	var sum float64
-	for _, g := range gaps {
-		sum += g
+	// 中位数对离群间隔不敏感：复制后排序取中位值，避免改动入参顺序。
+	tmp := append([]float64(nil), gaps...)
+	sort.Float64s(tmp)
+	if n%2 == 1 {
+		return tmp[n/2]
 	}
-	return sum / float64(len(gaps))
+	return (tmp[n/2-1] + tmp[n/2]) / 2
 }
