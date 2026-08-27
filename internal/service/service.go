@@ -2,6 +2,7 @@
 package service
 
 import (
+	"errors"
 	"fmt"
 
 	"task267-choreoreview/internal/beat"
@@ -392,6 +393,8 @@ func (s *Service) Stats() (*model.Stats, error) {
 	return out, nil
 }
 
+// isDuplicate 判定仓储层返回的错误是否为唯一约束冲突（重复候选）。
+// 全量分析幂等：重复运行遇到已物化的候选时跳过，而非报错。
 func isDuplicate(err error) bool {
-	return false
+	return errors.Is(err, model.ErrDuplicate)
 }
