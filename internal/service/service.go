@@ -220,6 +220,12 @@ func (a *AnalyzeActions) RunFullAnalysis(danceID int64) (*FullAnalysisResult, er
 			}
 		}
 	}
+	// 将已识别断裂的动作单元状态由 candidate 同步为 broken（幂等：重复运行仅重复写入同值）。
+	for _, b := range cont.Broken {
+		if err := a.svc.Store.Movements.MarkBroken(b.MovementID); err != nil {
+			return nil, err
+		}
+	}
 
 	// 2) 节拍对齐
 	align, err := a.AlignBeats(danceID)
@@ -249,8 +255,7 @@ func (a *AnalyzeActions) RunFullAnalysis(danceID int64) (*FullAnalysisResult, er
 		}
 	}
 
-	// 4) 标记断裂动作为 broken（跳过）
-
+	// 4) 收集未裁决候选摘要
 	open, err := a.svc.Store.Variants.OpenByDance(danceID)
 	if err != nil {
 		return nil, err
