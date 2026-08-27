@@ -19,8 +19,9 @@ func New() *Service {
 // CheckContinuity 校验每个舞者的动作序列：前一动作末拍与后一动作首拍是否衔接。
 //
 // 规则：
-//   - connection=continuous 的动作，其后一动作首拍必须等于前一动作末拍+1；
-//   - 否则记为断裂（broken），给出缺口节拍数；
+//   - 一对相邻动作 (cur→next) 只要其中任一为 connection=jump，即视为显式跳跃，
+//     两者间的节拍缺口不记为断裂（跳跃本身会留下空中节拍）；
+//   - 否则要求 next 首拍等于 cur 末拍+1，缺口大于 0 则记为断裂（broken）；
 //   - 同一舞者的动作按 start_beat 排序后逐对检查。
 func (s *Service) CheckContinuity(units []*model.MovementUnit) *model.ContinuityCheck {
 	// 按舞者分组。
@@ -45,10 +46,13 @@ func (s *Service) CheckContinuity(units []*model.MovementUnit) *model.Continuity
 		for i := 0; i < len(seq); i++ {
 			cur := seq[i]
 			if cur.Connection == model.ConnectionJump {
-				continue // 显式跳跃，不视为断裂
+				continue // 前置显式跳跃：本动作与其后继间的缺口不视为断裂
 			}
 			if i+1 < len(seq) {
 				next := seq[i+1]
+				if next.Connection == model.ConnectionJump {
+					continue // 后继显式跳跃：本动作与跳跃间的缺口不视为断裂
+				}
 				gap := next.StartBeat - cur.EndBeat - 1
 				if gap > 0 {
 					out.BrokenCount++
